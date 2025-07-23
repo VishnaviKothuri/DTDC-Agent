@@ -40,12 +40,17 @@ async def lifespan(app: FastAPI):
     logger.info("Starting application…")
     # 1) Initialize RAG once
     rag_system.initialize()
+    rag_system.debug_embedding_step_by_step()
+    rag_system.update_from_git(force_reindex=True)
+    report = rag_system.validate_embeddings()
+    print("REPORT ",report)
+
     # 2) Start scheduler
     scheduler.start()
     logger.info("Scheduler started")
     # 3) Schedule daily at midnight
     scheduler.add_job(
-        rag_system.update_index,
+        rag_system.update_from_git,
         trigger=CronTrigger(hour=0, minute=0),
         id="daily_rag_update",
         replace_existing=True
@@ -124,8 +129,16 @@ async def send_prompt(request: PromptRequest):
 async def generate_spring_boot_app(request: PromptRequest, background_tasks: BackgroundTasks):
     try:
         logger.info("Generate Spring Boot app…")
-        contexts = rag_system.retrieve_context(request.prompt)
-        prompt = rag_system.craft_prompt(request.prompt, contexts)
+        jira_prompt = request.prompt
+        contexts, tech_hint = rag_system.retrieve_context(
+            jira_prompt, top_k=5
+        )
+        logger.info(f"Detected layer: {tech_hint}") 
+        prompt = rag_system.craft_prompt(         
+            jira_prompt, contexts, technology_hint=tech_hint
+        )
+        # contexts = rag_system.retrieve_context(request.prompt)
+        prompt = rag_system.craft_prompt(request.prompt, contexts, technology_hint=tech_hint)
         code = await get_model_response(prompt)
 
         if not request.download:
@@ -146,7 +159,7 @@ async def update_rag_index(request: RAGUpdateRequest, background_tasks: Backgrou
     """Trigger on-demand RAG index update."""
     try:
         logger.info(f"Enqueue RAG update (force_reindex={request.force_reindex})")
-        background_tasks.add_task(rag_system.update_index, request.force_reindex)
+        background_tasks.add_task(rag_system.update_from_git, request.force_reindex)
         return {"message": "RAG update enqueued", "status": "processing"}
     except Exception as e:
         logger.exception("RAG update error")
@@ -157,6 +170,11 @@ async def get_rag_stats():
     """Retrieve RAG system statistics."""
     try:
         stats = rag_system.get_stats()
+        logger.info("Backend count: %s", stats["technology_breakdown"].get("backend", 0))
+        logger.info(
+            "Core-bank-ops count: %s",
+            stats["repository_breakdown"].get("core-bank-operations", 0)
+        )
         return RAGStatsResponse(**stats)
     except Exception as e:
         logger.exception("Stats error")
