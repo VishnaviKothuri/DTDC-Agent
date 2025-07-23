@@ -368,7 +368,7 @@ class RAGSystem:
             + user_prompt
             + "\n\nAnd the following relevant code from the project:\n"
             + context_snippet
-            + "\n\nYour task is to suggest exact code changes to implement the requirement.\n"
+            + "\n\nYour task is to suggest exact code changes to implement the requirement and provide information on which existing class(es) will be modified.\n"
             + "Your response must include:\n"
             + "- File path (relative)\n"
             + "- Line number or clear placement location\n"
