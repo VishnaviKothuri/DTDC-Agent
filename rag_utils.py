@@ -377,6 +377,7 @@ class RAGSystem:
             + "```"
             + "---\n\n"
             + "Only include relevant and required code. Do not generate extra text or assumptions beyond the scope of the requirement.\n"
+            + "Generate JUnit tests code for the suggestions.\n"
         )
 
     def get_stats(self):
